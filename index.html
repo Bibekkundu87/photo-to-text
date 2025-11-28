@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photo to Text Converter</title>
+    <!-- Import Tesseract.js from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    
+    <!-- CSS Styles -->
+    <style>
+        /* --- General Reset & Layout --- */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            color: #333;
+            /* Prevent default browser drag behavior on body */
+            overflow-x: hidden;
+        }
+
+        /* --- Main Card Container --- */
+        .container {
+            background-color: #ffffff;
+            width: 100%;
+            max-width: 600px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            z-index: 10;
+        }
+
+        /* --- Header Section --- */
+        header {
+            background-color: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            border-bottom: 1px solid #eee;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            color: #2d3748;
+            margin-bottom: 5px;
+        }
+
+        .subtitle {
+            font-size: 0.9rem;
+            color: #718096;
+        }
+
+        /* --- Content Area --- */
+        main {
+            padding: 20px;
+            position: relative;
+        }
+
+        /* --- Upload Section --- */
+        .upload-area {
+            border: 2px dashed #cbd5e0;
+            border-radius: 8px;
+            padding: 30px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            background-color: #fafbfc;
+            outline: none;
+        }
+
+        .upload-area:hover {
+            border-color: #667eea;
+            background-color: #edf2f7;
+        }
+
+        .upload-area:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3);
+        }
+
+        .upload-area * {
+            pointer-events: none;
+        }
+
+        .upload-icon {
+            font-size: 40px;
+            color: #a0aec0;
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        .upload-text {
+            color: #4a5568;
+            font-weight: 500;
+        }
+
+        #file-input {
+            display: none;
+        }
+
+        /* --- Drag Overlay --- */
+        .drag-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(102, 126, 234, 0.95);
+            z-index: 100;
+            display: none; /* Hidden by default */
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            color: white;
+            border-radius: 12px;
+        }
+
+        .drag-overlay.active {
+            display: flex;
+        }
+
+        .drag-overlay h2 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            pointer-events: none;
+        }
+
+        /* --- Image Preview Section --- */
+        .preview-container {
+            display: none; 
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .image-preview {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            object-fit: contain; 
+        }
+
+        .file-name {
+            margin-top: 8px;
+            font-size: 0.85rem;
+            color: #718096;
+            word-break: break-all;
+        }
+
+        /* --- Controls & Progress --- */
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            border: none;
+            padding: 12px 20px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-size: 1rem;
+            flex: 1;
+        }
+
+        .btn-primary {
+            background-color: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #5a67d8;
+        }
+
+        .btn-secondary {
+            background-color: #e2e8f0;
+            color: #4a5568;
+        }
+
+        .btn-secondary:hover {
+            background-color: #cbd5e0;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* Progress Bar */
+        .progress-container {
+            margin-top: 15px;
+            display: none; 
+        }
+
+        .progress-bar-bg {
+            width: 100%;
+            height: 8px;
+            background-color: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            width: 0%;
+            background-color: #48bb78;
+            transition: width 0.3s ease;
+        }
+
+        .status-text {
+            font-size: 0.85rem;
+            color: #718096;
+            margin-top: 5px;
+            text-align: center;
+        }
+
+        /* --- Result Section --- */
+        .result-section {
+            margin-top: 25px;
+            border-top: 1px solid #eee;
+            padding-top: 20px;
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .result-label {
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        #text-output {
+            width: 100%;
+            height: 150px;
+            padding: 12px;
+            border: 1px solid #cbd5e0;
+            border-radius: 6px;
+            resize: vertical;
+            font-family: monospace;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            color: #2d3748;
+            background-color: #fff;
+            /* Important for preserving line breaks */
+            white-space: pre-wrap; 
+        }
+
+        .btn-copy {
+            background-color: transparent;
+            color: #667eea;
+            border: 1px solid #667eea;
+            padding: 5px 10px;
+            font-size: 0.8rem;
+            flex: none; /* Don't stretch */
+        }
+
+        .btn-copy:hover {
+            background-color: #ebf4ff;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                border-radius: 0;
+                min-height: 100vh;
+            }
+            body { padding: 0; }
+            .controls { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Main App Container -->
+    <div class="container">
+        
+        <!-- Drag Overlay -->
+        <div class="drag-overlay" id="drag-overlay">
+            <h2>📂 Drop Here</h2>
+            <p>Release to upload image</p>
+        </div>
+
+        <header>
+            <h1>Photo to Text Converter</h1>
+            <p class="subtitle">Extract text from images using AI</p>
+        </header>
+
+        <main>
+            <!-- 1. Upload Section -->
+            <div class="upload-area" id="drop-area" tabindex="0" role="button" aria-label="Upload image area">
+                <span class="upload-icon">📁</span>
+                <p class="upload-text">Drag & Drop, Paste (Ctrl+V), or Click</p>
+                <input type="file" id="file-input" accept="image/png, image/jpeg, image/jpg">
+            </div>
+
+            <!-- 2. Preview Section -->
+            <div class="preview-container" id="preview-container">
+                <!-- Added crossOrigin attribute for canvas processing safety -->
+                <img src="" alt="Image Preview" class="image-preview" id="image-preview" crossorigin="anonymous">
+                <p class="file-name" id="file-name">filename.jpg</p>
+            </div>
+
+            <!-- 3. Progress Indicator -->
+            <div class="progress-container" id="progress-container">
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" id="progress-fill"></div>
+                </div>
+                <p class="status-text" id="status-text">Processing...</p>
+            </div>
+
+            <!-- 4. Controls -->
+            <div class="controls">
+                <button id="btn-convert" class="btn-primary" disabled>Convert to Text</button>
+                <button id="btn-clear" class="btn-secondary">Clear</button>
+            </div>
+
+            <!-- 5. Output Section -->
+            <div class="result-section">
+                <div class="result-header">
+                    <span class="result-label">Extracted Text:</span>
+                    <button id="btn-copy" class="btn-copy" disabled>Copy Text</button>
+                </div>
+                <textarea id="text-output" placeholder="Text will appear here... (You can edit result)"></textarea>
+            </div>
+        </main>
+    </div>
+
+    <!-- JavaScript Logic -->
+    <script>
+        // --- DOM Elements ---
+        const fileInput = document.getElementById('file-input');
+        const dropArea = document.getElementById('drop-area');
+        const dragOverlay = document.getElementById('drag-overlay');
+        const previewContainer = document.getElementById('preview-container');
+        const imagePreview = document.getElementById('image-preview');
+        const fileNameDisplay = document.getElementById('file-name');
+        
+        const btnConvert = document.getElementById('btn-convert');
+        const btnClear = document.getElementById('btn-clear');
+        const btnCopy = document.getElementById('btn-copy');
+        
+        const progressContainer = document.getElementById('progress-container');
+        const progressFill = document.getElementById('progress-fill');
+        const statusText = document.getElementById('status-text');
+        
+        const textOutput = document.getElementById('text-output');
+
+        // State variables
+        let selectedFile = null;
+
+        // --- GLOBAL Event Listeners (Document Level) ---
+
+        // 1. Prevent Browser Redirects on Drag/Drop
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            document.body.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            }, false);
+        });
+
+        // 2. Global Drag Enter - Show Overlay
+        let dragCounter = 0; // Needed because dragenter fires for every child element
+        document.body.addEventListener('dragenter', (e) => {
+            dragCounter++;
+            dragOverlay.classList.add('active');
+        });
+
+        // 3. Global Drag Leave - Hide Overlay
+        document.body.addEventListener('dragleave', (e) => {
+            dragCounter--;
+            if (dragCounter === 0) {
+                dragOverlay.classList.remove('active');
+            }
+        });
+
+        // 4. Global Drop - Handle File
+        document.body.addEventListener('drop', (e) => {
+            dragCounter = 0;
+            dragOverlay.classList.remove('active');
+            
+            const dt = e.dataTransfer;
+            if (dt && dt.files && dt.files[0]) {
+                handleFileSelection(dt.files[0]);
+            }
+        });
+
+        // 5. Global Paste - Handle Paste
+        document.addEventListener('paste', (e) => {
+            const clipboardData = e.clipboardData || e.originalEvent?.clipboardData;
+            if (!clipboardData) return;
+            
+            const items = clipboardData.items;
+            for (let i = 0; i < items.length; i++) {
+                const item = items[i];
+                if (item.kind === 'file' && item.type.startsWith('image/')) {
+                    const file = item.getAsFile();
+                    handleFileSelection(file);
+                    break;
+                }
+            }
+        });
+
+        // --- Local Component Listeners ---
+        dropArea.addEventListener('click', () => fileInput.click());
+        
+        dropArea.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                fileInput.click();
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files[0]) {
+                handleFileSelection(e.target.files[0]);
+            }
+        });
+
+        btnConvert.addEventListener('click', performOCR);
+        btnClear.addEventListener('click', clearAll);
+        btnCopy.addEventListener('click', copyTextToClipboard);
+
+
+        // --- Functions ---
+
+        /**
+         * Validates and processes the selected file for preview
+         */
+        function handleFileSelection(file) {
+            if (!file.type.match('image.*')) {
+                alert("Please select a valid image file (JPG, PNG).");
+                return;
+            }
+
+            selectedFile = file;
+            fileNameDisplay.textContent = file.name;
+            fileInput.value = ''; // Reset for re-selection
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                imagePreview.src = e.target.result;
+                previewContainer.style.display = 'block';
+                dropArea.style.display = 'none';
+                
+                // Reset UI
+                btnConvert.disabled = false;
+                textOutput.value = '';
+                btnCopy.disabled = true;
+                btnCopy.textContent = "Copy Text";
+                progressContainer.style.display = 'none';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        /**
+         * Converts image to Grayscale and increases Contrast.
+         * This significantly improves OCR accuracy.
+         */
+        function preprocessImage(imageElement) {
+            const canvas = document.createElement('canvas');
+            canvas.width = imageElement.naturalWidth;
+            canvas.height = imageElement.naturalHeight;
+            const ctx = canvas.getContext('2d');
+            
+            ctx.drawImage(imageElement, 0, 0);
+            
+            // Get raw pixel data
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imgData.data;
+            
+            // Contrast factor (Increase contrast by 20%)
+            const contrast = 1.2; 
+            const intercept = 128 * (1 - contrast);
+
+            for (let i = 0; i < data.length; i += 4) {
+                // Greyscale conversion (standard luminance formula)
+                const gray = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+                
+                // Apply Contrast
+                let newColor = (gray * contrast) + intercept;
+                
+                // Clamp values between 0 and 255
+                newColor = Math.min(255, Math.max(0, newColor));
+                
+                data[i] = newColor;     // R
+                data[i + 1] = newColor; // G
+                data[i + 2] = newColor; // B
+                // Alpha (data[i+3]) remains unchanged
+            }
+            
+            ctx.putImageData(imgData, 0, 0);
+            return canvas.toDataURL('image/jpeg');
+        }
+
+        /**
+         * Executes the OCR process
+         */
+        function performOCR() {
+            if (!selectedFile) return;
+
+            btnConvert.disabled = true;
+            btnClear.disabled = false; 
+            textOutput.value = '';
+            
+            progressContainer.style.display = 'block';
+            progressFill.style.width = '0%';
+            statusText.textContent = "Preprocessing Image...";
+
+            // 1. Preprocess the image (Grayscale + Contrast)
+            // We use the already loaded preview image for speed and to avoid reloading
+            const processedImageDataUrl = preprocessImage(imagePreview);
+
+            statusText.textContent = "Initializing Tesseract...";
+
+            // 2. Send processed image to Tesseract
+            Tesseract.recognize(
+                processedImageDataUrl,
+                'eng',
+                {
+                    logger: m => {
+                        if (!selectedFile) return; 
+                        if (m.status === 'recognizing text') {
+                            const pct = Math.floor(m.progress * 100);
+                            progressFill.style.width = pct + '%';
+                            statusText.textContent = `Scanning: ${pct}%`;
+                        } else {
+                            statusText.textContent = m.status;
+                        }
+                    }
+                }
+            ).then(({ data: { text } }) => {
+                if (!selectedFile) return;
+
+                // Success
+                textOutput.value = text;
+                statusText.textContent = "Conversion Complete!";
+                progressFill.style.width = '100%';
+                btnCopy.disabled = false;
+                btnConvert.disabled = false;
+
+                setTimeout(() => {
+                    if (selectedFile) progressContainer.style.display = 'none';
+                }, 2000);
+
+            }).catch(err => {
+                if (!selectedFile) return;
+                console.error(err);
+                statusText.textContent = "Error occurred.";
+                alert("Failed to extract text. Please try a clearer image.");
+                btnConvert.disabled = false;
+            });
+        }
+
+        function clearAll() {
+            selectedFile = null;
+            fileInput.value = ""; 
+            dropArea.style.display = 'block';
+            previewContainer.style.display = 'none';
+            imagePreview.src = "";
+            textOutput.value = "";
+            btnConvert.disabled = true;
+            btnCopy.disabled = true;
+            btnCopy.textContent = "Copy Text";
+            progressContainer.style.display = 'none';
+        }
+
+        function copyTextToClipboard() {
+            const text = textOutput.value;
+            if (!text) return;
+            textOutput.select();
+            textOutput.setSelectionRange(0, 99999);
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text)
+                    .then(showCopyFeedback)
+                    .catch(() => fallbackCopy());
+            } else {
+                fallbackCopy();
+            }
+        }
+
+        function fallbackCopy() {
+            try {
+                document.execCommand('copy');
+                showCopyFeedback();
+            } catch (err) {
+                alert("Could not copy automatically.");
+            }
+        }
+
+        function showCopyFeedback() {
+            const originalText = btnCopy.textContent;
+            btnCopy.textContent = "Copied!";
+            btnCopy.style.backgroundColor = "#ebf4ff";
+            setTimeout(() => {
+                btnCopy.textContent = originalText;
+                btnCopy.style.backgroundColor = "transparent";
+            }, 2000);
+        }
+    </script>
+</body>
+</html>
